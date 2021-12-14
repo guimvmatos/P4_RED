@@ -5,12 +5,9 @@
 const bit<8>  TCP_PROTOCOL = 0x06;
 const bit<16> TYPE_IPV4 = 0x800;
 const bit<19> ECN_THRESHOLD = 10;
-const bit<19> AVG = 0;
-const bit<19> Old_AVG = 0;
-const bit<19> Wq = 0;
-const bit<19> MINth = 250;
-const bit<19> MAXth = 500;
-bit<16> X = 1;
+const bit<19> Wq = 10;
+
+#define REGISTER_LENGTH 255
 
 
 /*************************************************************************
@@ -27,6 +24,9 @@ header ethernet_t {
     bit<16>   etherType;
 }
 
+/*
+ * TODO: split tos to two fields 6 bit diffserv and 2 bit ecn
+ */
 header ipv4_t {
     bit<4>    version;
     bit<4>    ihl;
@@ -56,9 +56,9 @@ struct headers {
 *************************************************************************/
 
 parser MyParser(packet_in packet,
-                out headers hdr,
-                inout metadata meta,
-                inout standard_metadata_t standard_metadata) {
+                  out headers hdr,
+                  inout metadata meta,
+                  inout standard_metadata_t standard_metadata) {
 
     state start {
         transition parse_ethernet;
@@ -95,6 +95,9 @@ control MyVerifyChecksum(inout headers hdr, inout metadata meta) {
 control MyIngress(inout headers hdr,
                   inout metadata meta,
                   inout standard_metadata_t standard_metadata) {
+
+
+
     action drop() {
         mark_to_drop(standard_metadata);
     }
@@ -113,44 +116,16 @@ control MyIngress(inout headers hdr,
         actions = {
             ipv4_forward;
             drop;
-            NoAction;
         }
         size = 1024;
-        default_action = NoAction();
+        default_action = drop;
     }
 
     apply {
-        bit<19> queue_size_now = standard_metadata.enq_qdepth;
-        /*bit<19> step1 = 10-Wq;
-        bit<19> step2 = step1*Old_AVG;
-        bit<19> step3 = Wq*queue_size_now;
-        bit<19> step4 = step2+step3;*/
-        bit<19> new_AVG = (10-Wq)*Old_AVG + Wq * queue_size_now;
-        /*AVG = step4;*/
+        if (hdr.ipv4.isValid()) {
 
-        if (new_AVG < MINth){
-            if (hdr.ipv4.isValid()) {
-                ipv4_lpm.apply();
-            }
+            ipv4_lpm.apply();
         }
-
-        if (new_AVG > MINth && new_AVG < MAXth){
-            bit<16> rand_val;
-            random<bit<16>>(rand_val,0,255);
-            bit<16> drop_prob = X + X;
-            if (drop_prob > rand_val) {
-                drop();
-            }
-            X = drop_prob;
-        }
-
-        if (new_AVG > MAXth){
-            drop();
-        }
-
-
-
-
     }
 }
 
@@ -161,15 +136,29 @@ control MyIngress(inout headers hdr,
 control MyEgress(inout headers hdr,
                  inout metadata meta,
                  inout standard_metadata_t standard_metadata) {
-    action mark_ecn() {
-        hdr.ipv4.ecn = 3;
-    }
+
+    register<bit<19>>(REGISTER_LENGTH) tos_register;
+
     apply {
-        if (hdr.ipv4.ecn == 1 || hdr.ipv4.ecn == 2){
+
+        bit<32>reg_pos_zero = 0;
+        bit<19> queue_size_now = standard_metadata.enq_qdepth;
+        bit<19> Old_AVG = 0;
+        tos_register.read(Old_AVG,reg_pos_zero);
+        bit<19> new_AVG = (10-Wq)*Old_AVG + Wq * queue_size_now;
+        tos_register.write(reg_pos_zero,new_AVG);
+
+        if (hdr.ipv4.ecn == 1 || hdr.ipv4.ecn == 2) {
             if (standard_metadata.enq_qdepth >= ECN_THRESHOLD){
-                mark_ecn();
+                hdr.ipv4.ecn = 3;
             }
         }
+        /*
+         * TODO:
+         * - if ecn is 1 or 2
+         *   - compare standard_metadata.enq_qdepth with threshold
+         *     and set hdr.ipv4.ecn to 3 if larger
+         */
     }
 }
 
@@ -178,13 +167,14 @@ control MyEgress(inout headers hdr,
 *************************************************************************/
 
 control MyComputeChecksum(inout headers hdr, inout metadata meta) {
-     apply {
+    apply {
+        /* TODO: replace tos with diffserve and ecn */
 	update_checksum(
 	    hdr.ipv4.isValid(),
             { hdr.ipv4.version,
-	      hdr.ipv4.ihl,
-	      hdr.ipv4.diffserv,
-	      hdr.ipv4.ecn,
+              hdr.ipv4.ihl,
+              hdr.ipv4.diffserv,
+              hdr.ipv4.ecn,
               hdr.ipv4.totalLen,
               hdr.ipv4.identification,
               hdr.ipv4.flags,
