@@ -7,7 +7,7 @@ const bit<16> TYPE_IPV4 = 0x800;
 const bit<19> ECN_THRESHOLD = 10;
 const bit<19> Wq = 10;
 
-#define REGISTER_LENGTH 255
+#define REGISTER_LENGTH 1024
 
 
 /*************************************************************************
@@ -144,9 +144,17 @@ control MyEgress(inout headers hdr,
         bit<32>reg_pos_zero = 0;
         bit<19> queue_size_now = standard_metadata.enq_qdepth;
         bit<19> Old_AVG = 0;
-        tos_register.read(Old_AVG,reg_pos_zero);
-        bit<19> new_AVG = (10-Wq)*Old_AVG + Wq * queue_size_now;
-        tos_register.write(reg_pos_zero,new_AVG);
+        bit<19> position_to_read = 0;
+        tos_register.read(position_to_read,reg_pos_zero);
+        bit<32> readOn = (bit<32>) position_to_read;
+        tos_register.read(Old_AVG,readOn);
+        /*bit<19> new_AVG = (10-Wq)*Old_AVG + Wq * queue_size_now;*/ /* algoritmo do red */
+        bit<19> new_AVG = (Old_AVG*98)+(queue_size_now*2); /*algoritmo do wred by cisco */
+        bit<19> position_to_write = position_to_read + 1;
+        bit<32> writeOn = (bit<32>) position_to_write;
+        tos_register.write(writeOn,new_AVG);
+        /*tos_register.write(writeOn,1);*/ /* para verificar que nao esta pulando casas*/
+        tos_register.write(reg_pos_zero,position_to_write);
 
         if (hdr.ipv4.ecn == 1 || hdr.ipv4.ecn == 2) {
             if (standard_metadata.enq_qdepth >= ECN_THRESHOLD){
