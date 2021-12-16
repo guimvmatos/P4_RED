@@ -6,8 +6,10 @@ const bit<8>  TCP_PROTOCOL = 0x06;
 const bit<16> TYPE_IPV4 = 0x800;
 const bit<19> ECN_THRESHOLD = 10;
 const bit<19> Wq = 10;
+const bit<19> MinTh = 230000;
+const bit<19> MaxTh = 375000;
 
-#define REGISTER_LENGTH 1024
+#define REGISTER_LENGTH 30000
 
 
 /*************************************************************************
@@ -137,30 +139,62 @@ control MyEgress(inout headers hdr,
                  inout metadata meta,
                  inout standard_metadata_t standard_metadata) {
 
-    register<bit<19>>(REGISTER_LENGTH) tos_register;
+     action drop() {
+         mark_to_drop(standard_metadata);
+     }
+
+    register<bit<19>>(REGISTER_LENGTH) avg_r;
+    register<bit<11>>(1) dp_r;
 
     apply {
 
         bit<32>reg_pos_zero = 0;
         bit<19> queue_size_now = standard_metadata.enq_qdepth;
-        bit<19> Old_AVG = 0;
+        bit<19> Old_AVG;
         bit<19> position_to_read = 0;
-        tos_register.read(position_to_read,reg_pos_zero);
+        avg_r.read(position_to_read,reg_pos_zero);
         bit<32> readOn = (bit<32>) position_to_read;
-        tos_register.read(Old_AVG,readOn);
+        avg_r.read(Old_AVG,readOn);
         /*bit<19> new_AVG = (10-Wq)*Old_AVG + Wq * queue_size_now;*/ /* algoritmo do red */
         bit<19> new_AVG = (Old_AVG*98)+(queue_size_now*2); /*algoritmo do wred by cisco */
         bit<19> position_to_write = position_to_read + 1;
         bit<32> writeOn = (bit<32>) position_to_write;
-        tos_register.write(writeOn,new_AVG);
-        /*tos_register.write(writeOn,1);*/ /* para verificar que nao esta pulando casas*/
-        tos_register.write(reg_pos_zero,position_to_write);
+        avg_r.write(writeOn,new_AVG);
+        /*avg_r.write(writeOn,1);*/ /* para verificar que nao esta pulando casas*/
+        avg_r.write(reg_pos_zero,position_to_write);
 
+        if (new_AVG > MinTh && new_AVG < MaxTh) {
+            hdr.ipv4.ecn = 3;
+            bit<32> pos_zero = 0;
+            bit<11> drop_prob_read = 0;
+            dp_r.read(drop_prob_read,pos_zero);
+            if (drop_prob_read == 0){
+                drop_prob_read = 1;
+            };
+            bit<11> drop_prob_write = drop_prob_read * 2;
+            dp_r.write(pos_zero,drop_prob_write);
+            bit<11> rand_val;
+            random<bit<11>>(rand_val, 0, 2047);
+            if (drop_prob_write > rand_val){
+                drop();
+            }
+
+
+        }
+
+        if (new_AVG > MaxTh) {
+            drop();
+
+        }
+
+/*
         if (hdr.ipv4.ecn == 1 || hdr.ipv4.ecn == 2) {
             if (standard_metadata.enq_qdepth >= ECN_THRESHOLD){
                 hdr.ipv4.ecn = 3;
             }
         }
+*/
+
         /*
          * TODO:
          * - if ecn is 1 or 2
