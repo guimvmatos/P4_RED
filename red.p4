@@ -6,10 +6,10 @@ const bit<8>  TCP_PROTOCOL = 0x06;
 const bit<16> TYPE_IPV4 = 0x800;
 const bit<19> ECN_THRESHOLD = 10;
 const bit<19> Wq = 10;
-const bit<19> MinTh = 230000;
-const bit<19> MaxTh = 375000;
+const bit<19> MinTh = 375000;
+const bit<19> MaxTh = 475000;
 
-#define REGISTER_LENGTH 30000
+#define REGISTER_LENGTH 3000
 
 
 /*************************************************************************
@@ -147,6 +147,9 @@ control MyEgress(inout headers hdr,
     register<bit<11>>(1) dp_r;
 
     apply {
+        //Primeira parte
+        //Calcula media e salva em registrador
+        //simple_switch_CLI --thrift-port 9090
 
         bit<32>reg_pos_zero = 0;
         bit<19> queue_size_now = standard_metadata.enq_qdepth;
@@ -163,8 +166,8 @@ control MyEgress(inout headers hdr,
         /*avg_r.write(writeOn,1);*/ /* para verificar que nao esta pulando casas*/
         avg_r.write(reg_pos_zero,position_to_write);
 
+
         if (new_AVG > MinTh && new_AVG < MaxTh) {
-            hdr.ipv4.ecn = 3;
             bit<32> pos_zero = 0;
             bit<11> drop_prob_read = 0;
             dp_r.read(drop_prob_read,pos_zero);
@@ -178,13 +181,10 @@ control MyEgress(inout headers hdr,
             if (drop_prob_write > rand_val){
                 drop();
             }
-
-
         }
 
         if (new_AVG > MaxTh) {
             drop();
-
         }
 
 /*
