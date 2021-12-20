@@ -6,8 +6,8 @@ const bit<8>  TCP_PROTOCOL = 0x06;
 const bit<16> TYPE_IPV4 = 0x800;
 const bit<19> ECN_THRESHOLD = 10;
 const bit<19> Wq = 10;
-const bit<19> MinTh = 375000;
-const bit<19> MaxTh = 475000;
+const bit<19> MinTh = 32;
+const bit<19> MaxTh = 50;
 
 #define REGISTER_LENGTH 3000
 
@@ -162,7 +162,8 @@ control MyEgress(inout headers hdr,
         bit<19> new_AVG = (Old_AVG*98)+(queue_size_now*2); /*algoritmo do wred by cisco */
         bit<19> position_to_write = position_to_read + 1;
         bit<32> writeOn = (bit<32>) position_to_write;
-        avg_r.write(writeOn,new_AVG);
+        /*avg_r.write(writeOn,new_AVG);*/
+        avg_r.write(writeOn,queue_size_now);
         /*avg_r.write(writeOn,1);*/ /* para verificar que nao esta pulando casas*/
         avg_r.write(reg_pos_zero,position_to_write);
 
@@ -177,7 +178,7 @@ control MyEgress(inout headers hdr,
             bit<11> drop_prob_write = drop_prob_read * 2;
             dp_r.write(pos_zero,drop_prob_write);
             bit<11> rand_val;
-            random<bit<11>>(rand_val, 0, 2047);
+            random<bit<11>>(rand_val, 0, 16);
             if (drop_prob_write > rand_val){
                 drop();
             }
