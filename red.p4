@@ -9,7 +9,8 @@ const bit<19> Wq = 10;
 const bit<19> MinTh = 32;
 const bit<19> MaxTh = 50;
 
-#define REGISTER_LENGTH 3000
+
+#define REGISTER_LENGTH 100
 
 
 /*************************************************************************
@@ -151,6 +152,7 @@ control MyEgress(inout headers hdr,
         //Calcula media e salva em registrador
         //simple_switch_CLI --thrift-port 9090
 
+/*
         bit<32>reg_pos_zero = 0;
         bit<19> queue_size_now = standard_metadata.enq_qdepth;
         bit<19> Old_AVG;
@@ -158,14 +160,19 @@ control MyEgress(inout headers hdr,
         avg_r.read(position_to_read,reg_pos_zero);
         bit<32> readOn = (bit<32>) position_to_read;
         avg_r.read(Old_AVG,readOn);
-        /*bit<19> new_AVG = (10-Wq)*Old_AVG + Wq * queue_size_now;*/ /* algoritmo do red */
-        bit<19> new_AVG = (Old_AVG*98)+(queue_size_now*2); /*algoritmo do wred by cisco */
+        bit<19> new_AVG = (Old_AVG*98)+(queue_size_now*2);
         bit<19> position_to_write = position_to_read + 1;
         bit<32> writeOn = (bit<32>) position_to_write;
-        /*avg_r.write(writeOn,new_AVG);*/
-        avg_r.write(writeOn,queue_size_now);
-        /*avg_r.write(writeOn,1);*/ /* para verificar que nao esta pulando casas*/
+        avg_r.write(writeOn,new_AVG);
         avg_r.write(reg_pos_zero,position_to_write);
+*/
+
+        bit<32>reg_pos_zero = 0;
+        bit<19> queue_size_now = standard_metadata.enq_qdepth;
+        bit<19> Old_AVG;
+        avg_r.read(Old_AVG,reg_pos_zero);
+        bit<19> new_AVG = (Old_AVG*98)+(queue_size_now*2);
+        avg_r.write(reg_pos_zero,new_AVG);
 
 
         if (new_AVG > MinTh && new_AVG < MaxTh) {
