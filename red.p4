@@ -154,7 +154,7 @@ control MyIngress(inout headers hdr,
                   inout metadata meta,
                   inout standard_metadata_t standard_metadata) {
     action drop() {
-        mark_to_drop(standard_metadata);
+        mark_to_drop();
     }
     
     action ipv4_forward(macAddr_v dstAddr, egressSpec_v port) {
@@ -195,7 +195,7 @@ control MyEgress(inout headers hdr,
                  inout standard_metadata_t standard_metadata) {
 
     action drop() {
-         mark_to_drop(standard_metadata);
+        mark_to_drop();
      }
 
     action add_swtrace(switchID_v swid) { 
