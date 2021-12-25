@@ -250,7 +250,7 @@ control MyEgress(inout headers hdr,
             bit<8> rand_val;
             random<bit<8>>(rand_val, 0, 255);
             
-            if (drop_prob_write > rand_val){
+            if (drop_prob > rand_val){
                 drop();
             }
         }
