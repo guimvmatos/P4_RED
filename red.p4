@@ -187,9 +187,9 @@ control MyEgress(inout headers hdr,
 
     apply {
 
-/*
-        bit<9> qdepth = (bit<9>)standard_metadata.enq_qdepth;
 
+        bit<9> qdepth = (bit<9>)standard_metadata.enq_qdepth;
+/*
         avg_r.write(0,qdepth);
 
         if (qdepth >= MinTh && qdepth <= MaxTh) {
