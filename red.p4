@@ -41,8 +41,8 @@ header ipv4_t {
     bit<8>    ttl;
     bit<8>    protocol;
     bit<16>   hdrChecksum;
-    ip4Addr_v srcAddr;
-    ip4Addr_v dstAddr;
+    ip4Addr_t srcAddr;
+    ip4Addr_t dstAddr;
 }
 
 header ipv6_t {
